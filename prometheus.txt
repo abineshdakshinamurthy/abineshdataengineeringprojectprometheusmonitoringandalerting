@@ -1,0 +1,330 @@
+we are going to monitor nodex using prometheus node exporter.
+1.Create AMzon Ec2 insatnces. ssh to that ec2
+
+2.update  the yum package repositories
+
+sudo yum update -y
+
+3.go to official prometheus server and copy the download link for linux binary
+https://github.com/prometheus/prometheus/releases/download/v2.37.5/prometheus-2.37.5.linux-amd64.tar.gz
+
+4.create a prometheus user, required directories,and make prometheus user as the owner of those directories.
+sudo useradd --no-create-home --shell /bin/false prometheus
+sudo mkdir /etc/prometheus
+sudo mkdir /var/lib/prometheus
+sudo chown prometheus:prometheus /etc/prometheus
+sudo chown prometheus:prometheus /var/lib/prometheus
+
+5. Download the source using wget, untar it and rename the extracted folder to prometheus-files.
+wget https://github.com/prometheus/prometheus/releases/download/v2.37.5/prometheus-2.37.5.linux-amd64.tar.gz
+or curl -LO https://github.com/prometheus/prometh...
+tar -xvf prometheus-2.3.2.linux-amd64.tar.gz
+
+6. move the unziped prometheus-2.37.5.linux-amd64 to prometheus-files folder
+mv prometheus-2.18.1.linux-amd64 prometheus-files
+
+7.Copy prometheus and promtool binary from prometheus-files folder to /usr/local/bin and change the ownership to prometheus user.
+sudo cp prometheus-files/prometheus /usr/local/bin/
+sudo cp prometheus-files/promtool /usr/local/bin/
+sudo chown prometheus:prometheus /usr/local/bin/prometheus
+sudo chown prometheus:prometheus /usr/local/bin/promtool
+
+8.Step 6: Move the consoles and console_libraries directories from prometheus-files to /etc/prometheus folder and change the ownership to prometheus user.
+
+sudo cp -r prometheus-files/consoles /etc/prometheus
+sudo cp -r prometheus-files/console_libraries /etc/prometheus
+sudo chown -R prometheus:prometheus /etc/prometheus/consoles
+sudo chown -R prometheus:prometheus /etc/prometheus/console_libraries
+
+9.Setup Prometheus Configuration
+All the prometheus configurations should be present in /etc/prometheus/prometheus.yml file.
+
+10.Setup Prometheus Configuration
+All the prometheus configurations should be present in /etc/prometheus/prometheus.yml file.
+
+Step 1: Create the prometheus.yml file.
+
+sudo vi /etc/prometheus/prometheus.yml
+
+Step 2: Copy the following contents to the prometheus.yml file.
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:9090']
+Step 3: Change the ownership of the file to prometheus user.
+sudo chown prometheus:prometheus /etc/prometheus/prometheus.yml
+
+Setup Prometheus Service File
+Step 1: Create a prometheus service file.
+
+sudo vi /etc/systemd/system/prometheus.service
+
+Step 2: Copy the following content to the file.
+
+sudo chown prometheus:prometheus /etc/prometheus/prometheus.yml
+
+Setup Prometheus Service File
+Step 1: Create a prometheus service file.
+
+sudo vi /etc/systemd/system/prometheus.service
+
+Step 2: Copy the following content to the file.
+
+[Unit]
+Description=Prometheus
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/local/bin/prometheus \
+    --config.file /etc/prometheus/prometheus.yml \
+    --storage.tsdb.path /var/lib/prometheus/ \
+    --web.console.templates=/etc/prometheus/consoles \
+    --web.console.libraries=/etc/prometheus/console_libraries
+
+[Install]
+WantedBy=multi-user.target
+Step 3: Reload the systemd service to register the prometheus service and start the prometheus service.
+
+sudo systemctl daemon-reload
+sudo systemctl start prometheus
+
+Check the prometheus service status using the following command.
+
+sudo systemctl status prometheus
+
+Access Prometheus Web UI
+Now you will be able to access the prometheus UI on 9090 port of the prometheus server.
+
+http:ec2serverip:9090/graph
+Right now we have just configured prometheus. You need to register the target in the prometheus.yml file to get the metrics from the source systems.
+
+
+#################################################################################################################
+#connecting to node exporter
+
+download the node exporter from prometheus link
+https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz
+
+Prometheus Node Exporter needs Prometheus server to be up and running. If you would like to setup Prometheus, please see the Prometheus setup guide for Linux.
+Port 9100 opened in server firewall as Prometheus reads metrics on this port.
+
+Setup Node Exporter Binary
+Step 1: Download the latest node exporter package. You should check the Prometheus downloads section for the latest version and update this command to get that package.
+
+cd /tmp
+https://github.com/prometheus/node_ex...
+curl -LO https://github.com/prometheus/node_ex...
+Step 2: Unpack the tarball
+
+tar -xvf node_exporter-0.18.1.linux-amd64.tar.gz
+Step 3: Move the node export binary to /usr/local/bin
+
+sudo mv node_exporter-0.18.1.linux-amd64/node_exporter /usr/local/bin/
+
+Create a Custom Node Exporter Service
+Step 1: Create a node_exporter user to run the node exporter service.
+
+sudo useradd -rs /bin/false node_exporter
+Step 2: Create a node_exporter service file under systemd.
+
+sudo vi /etc/systemd/system/node_exporter.service
+Step 3: Add the following service file content to the service file and save it.
+
+[Unit]
+Description=Node Exporter
+After=network.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+Type=simple
+ExecStart=/usr/local/bin/node_exporter
+
+[Install]
+WantedBy=multi-user.target
+Step 4: Reload the system daemon and star the node exporter service.
+
+sudo systemctl daemon-reload
+sudo systemctl start node_exporter
+Step 5: check the node exporter status to make sure it is running in the active state.
+
+sudo systemctl status node_exporter
+Step 6: Enable the node exporter service to the system startup.
+
+sudo systemctl enable node_exporter
+Now, node exporter would be exporting metrics on port 9100. 
+You can see all the server metrics by visiting your server URL on /metrics as shown below.
+http://serverip:9100/metrics
+Configure the Server as Target on Prometheus Server
+Now that we have the node exporter up and running on the server, we have to add this server a target on the Prometheus server configuration.
+
+Note: This configuration should be done on the Prometheus server.
+
+Step 1: Login to the Prometheus server and open the prometheus.yml file.
+
+sudo vi /etc/prometheus/prometheus.yml
+Step 2: Under the scrape config section add the node exporter target as shown below. Change 10.142.0.3 with your server IP where you have setup node exporter. Job name can be your server hostname or IP for identification purposes.
+
+- job_name: 'node_exporter_metrics'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['18.207.233.211:9100']
+Step 3: Restart the prometheus service for the configuration changes to take place.
+sudo systemctl restart prometheus
+Now, if you check the target in prometheus web UI (http://ec2serverip:9090/targets) , you will be able to see the status as shown below.
+
+prometheus node exporter status
+Also, you can use the Prometheus expression browser to query for node related metrics. Following are the few key node metrics you can use to find its statistics.
+
+node_memory_MemFree_bytes
+node_cpu_seconds_total
+node_filesystem_avail_bytes
+rate(node_cpu_seconds_total{mode="system"}[1m]) 
+rate(node_network_receive_bytes_total[1m])
+
+########################################################
+Alert manager configuration
+
+1.dowload https://github.com/prometheus/alertmanager/releases/download/v0.25.0/alertmanager-0.25.0.linux-amd64.tar.gz
+
+wget https://github.com/prometheus/alertmanager/releases/download/v0.25.0/alertmanager-0.25.0.linux-amd64.tar.gz
+
+2. tar -xvzf alertmanager-0.25.0.linux-amd64.tar.gz 
+
+3.cd alertmanager-0.25.0.linux-amd64/
+4.cat alertmanager.yml
+5.to strat alertmanager --> ./alertmanager
+6. add the port 9093 to the ec2 security.
+7. edit premetheus.yml
+global:
+  scrape_interval: 10s
+
+alertng:
+  alertmanagers:
+  - static_configs:
+    - targets: ['13.233.147.208:9093']
+
+rule_files:
+  - alert.rules.yml
+
+scrape_configs:
+  - job_name: 'prometheus'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['13.233.147.208:9090']
+  - job_name: 'node_exporter_metrics'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['13.233.147.208:9100']
+~                                         
+
+#create alert.rules.yml file
+
+groups:
+- name: alert.rules
+  rules:
+  - alert: InstanceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Endpoint {{ $labels.instance }} down"
+      description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minutes."
+  
+  - alert: HostOutOfMemory
+    expr: node_memory_MemAvailable / node_memory_MemTotal * 100 < 25
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Host out of memory (instance {{ $labels.instance }})"
+      description: "Node memory is filling up (< 25% left)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+
+  - alert: HostOutOfDiskSpace
+    expr: (node_filesystem_avail{mountpoint="/"}  * 100) / node_filesystem_size{mountpoint="/"} < 50
+    for: 1s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Host out of disk space (instance {{ $labels.instance }})"
+      description: "Disk is almost full (< 50% left)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+
+  - alert: HostHighCpuLoad
+    expr: (sum by (instance) (irate(node_cpu{job="node_exporter_metrics",mode="idle"}[5m]))) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Host high CPU load (instance {{ $labels.instance }})"
+      description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+########################
+
+configuring slack
+1.cat alertmaanger.yml
+
+global:
+  resolve_timeout: 1m
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1m
+  receiver: 'slack-notifications'
+receivers:
+- name: 'slack-notifications'
+  slack_configs:
+  - api_url: "https://hooks.slack.com/services/F017KPtH6R4/C01F3TWJ7AT/dbMICMatyojmcwoibv)"
+    channel: 'prometheusalert'
+    send_resolved: true
+
+
+
+    icon_url: https://avatars3.githubusercontent.com/u/3380462
+    title: |-
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} for {{ .CommonLabels.job }}
+      {{- if gt (len .CommonLabels) (len .GroupLabels) -}}
+        {{" "}}(
+        {{- with .CommonLabels.Remove .GroupLabels.Names }}
+          {{- range $index, $label := .SortedPairs -}}
+            {{ if $index }}, {{ end }}
+            {{- $label.Name }}="{{ $label.Value -}}"
+          {{- end }}
+        {{- end -}}
+        )
+      {{- end }}
+    text: >-
+      {{ with index .Alerts 0 -}}
+        :chart_with_upwards_trend: *<{{ .GeneratorURL }}|Graph>*
+        {{- if .Annotations.runbook }}   :notebook: *<{{ .Annotations.runbook }}|Runbook>*{{ end }}
+      {{ end }}
+      *Alert details*:
+      {{ range .Alerts -}}
+        *Alert:* {{ .Annotations.title }}{{ if .Labels.severity }} - `{{ .Labels.severity }}`{{ end }}
+      *Description:* {{ .Annotations.description }}
+      *Details:*
+        {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+        {{ end }}
+      {{ end }}
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']
+
+
+
+
